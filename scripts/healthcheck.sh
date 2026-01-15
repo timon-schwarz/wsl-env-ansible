@@ -1,6 +1,29 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
+# Do not allow running as root.
+# If this triggers, the WSL default user is misconfigured.
+if [ "$(id -u)" -eq 0 ]; then
+  cat >&2 <<'EOF'
+ERROR: setup.sh must NOT be run as root.
+
+This indicates that the WSL default user is not set correctly.
+Fix it by running the Windows bootstrap script again, or by setting
+the default user for this distro manually.
+
+Verify with:
+  id -un
+
+Expected: your normal user (not root)
+EOF
+  exit 1
+fi
+
+if [ ! -d "$HOME" ] || [ "$HOME" = "/" ]; then
+  echo "ERROR: HOME is invalid ('$HOME'). Aborting." >&2
+  exit 1
+fi
+
 profile="${1:-}"
 
 usage() {
