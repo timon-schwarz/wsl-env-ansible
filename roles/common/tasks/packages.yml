@@ -1,0 +1,52 @@
+# Baseline packages for all profiles.
+# Keep this list opinionated but broadly useful across work/uni/private.
+- name: Install common packages (dnf)
+  ansible.builtin.dnf:
+    name:
+      # Core utilities
+      - git
+      - git-lfs
+      - curl
+      - wget
+      - ca-certificates
+      - openssh-clients
+      - gnupg2
+      - unzip
+      - zip
+      - tar
+      - gzip
+      - bzip2
+      - xz
+      - jq
+      - yq
+      - ripgrep
+      - fd-find
+      - fzf
+      - tmux
+      - zsh
+      - bash-completion
+      - less
+      - which
+      - man-db
+      - man-pages
+
+      # Editor
+      - neovim
+
+      # Build + language runtimes commonly required by Neovim plugins and day-to-day dev
+      - gcc
+      - gcc-c++
+      - make
+      - cmake
+      - pkgconf-pkg-config
+      - python3
+      - python3-pip
+      - python3-virtualenv
+      - python3-neovim
+      - nodejs
+      - npm
+
+      # GitHub CLI (useful across profiles)
+      - gh
+    state: present
+  become: true

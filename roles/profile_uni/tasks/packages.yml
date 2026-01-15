@@ -1,0 +1,18 @@
+# Uni profile packages.
+- name: Install uni profile packages (dnf)
+  ansible.builtin.dnf:
+    name:
+      # Common CS / informatics tooling
+      - golang
+      - rust
+      - cargo
+
+      # Java toolchain (Fedora typically provides this package)
+      - java-21-openjdk
+      - maven
+
+      # Build tooling
+      - gdb
+      - strace
+    state: present
+  become: true

@@ -1,0 +1,14 @@
+# Neovim configuration deployment
+# Intentionally minimal variables; derived from environment.
+
+home_dir: "{{ lookup('env', 'HOME') }}"
+
+nvim_src_dir: "{{ role_path }}/../../files/nvim"
+nvim_target_dir: "{{ home_dir }}/.config/nvim"
+
+# Files that should never be deployed
+nvim_exclude_filenames:
+  - .gitkeep
+
+# Backup suffix for existing files/directories that would be replaced
+nvim_backup_suffix: ".bak"

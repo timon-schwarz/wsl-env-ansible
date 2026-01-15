@@ -1,0 +1,31 @@
+- name: Define required commands
+  ansible.builtin.set_fact:
+    healthcheck_commands:
+      - git
+      - nvim
+      - rg
+      - fd
+      - fzf
+      - tmux
+      - ssh
+      - curl
+      - jq
+
+- name: Check required commands exist in PATH
+  ansible.builtin.command: "bash -lc 'command -v {{ item }}'"
+  loop: "{{ healthcheck_commands }}"
+  register: cmd_check
+  changed_when: false
+  failed_when: cmd_check.rc != 0
+
+- name: Verify Neovim can start headless
+  ansible.builtin.command: "bash -lc 'nvim --headless +qall'"
+  register: nvim_headless
+  changed_when: false
+
+- name: Print healthcheck summary
+  ansible.builtin.debug:
+    msg:
+      - "Profile: {{ wsl_profile }}"
+      - "Commands OK: {{ healthcheck_commands | join(', ') }}"
+      - "Neovim headless OK (rc={{ nvim_headless.rc }})"

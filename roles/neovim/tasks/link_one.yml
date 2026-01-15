@@ -1,0 +1,29 @@
+- name: Compute relative path for Neovim file
+  ansible.builtin.set_fact:
+    nvim_rel_path: "{{ nvim_file.path | regex_replace('^' ~ (nvim_src_dir | regex_escape) ~ '/?', '') }}"
+    nvim_dest_path: "{{ nvim_target_dir }}/{{ nvim_rel_path }}"
+
+- name: Ensure destination parent directory exists
+  ansible.builtin.file:
+    path: "{{ nvim_dest_path | dirname }}"
+    state: directory
+    mode: "0755"
+
+- name: Stat destination path
+  ansible.builtin.stat:
+    path: "{{ nvim_dest_path }}"
+  register: nvim_dest_stat
+
+- name: Backup existing destination when it is not the desired symlink
+  ansible.builtin.command:
+    cmd: "mv {{ nvim_dest_path }} {{ nvim_dest_path }}{{ nvim_backup_suffix }}.{{ nvim_deploy_timestamp }}"
+  when:
+    - nvim_dest_stat.stat.exists
+    - not (nvim_dest_stat.stat.islnk and (nvim_dest_stat.stat.lnk_source | default('')) == nvim_file.path)
+
+- name: Create symlink
+  ansible.builtin.file:
+    src: "{{ nvim_file.path }}"
+    dest: "{{ nvim_dest_path }}"
+    state: link
+    force: true

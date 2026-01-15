@@ -1,0 +1,17 @@
+- name: Converge WSL environment (full)
+  hosts: localhost
+  gather_facts: true
+
+  pre_tasks:
+    - name: Validate wsl_profile
+      ansible.builtin.assert:
+        that:
+          - wsl_profile in ['work', 'uni', 'private']
+        fail_msg: "wsl_profile must be one of: work, uni, private"
+
+  roles:
+    - role: wsl
+    - role: common
+    - role: "profile_{{ wsl_profile }}"
+    - role: dotfiles
+    - role: neovim

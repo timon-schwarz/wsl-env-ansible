@@ -1,0 +1,78 @@
+- name: Determine init file
+  ansible.builtin.set_fact:
+    nvim_init_candidates:
+      - "{{ nvim_target_dir }}/init.lua"
+      - "{{ nvim_target_dir }}/init.vim"
+
+- name: Stat init candidates
+  ansible.builtin.stat:
+    path: "{{ item }}"
+  loop: "{{ nvim_init_candidates }}"
+  register: nvim_init_stats
+
+- name: Pick first existing init file
+  ansible.builtin.set_fact:
+    nvim_init_file: "{{ (nvim_init_stats.results | selectattr('stat.exists', 'equalto', true) | map(attribute='item') | list | first) | default('') }}"
+
+- name: Skip plugin installation if no init file present
+  ansible.builtin.debug:
+    msg: "Skipping plugin installation; no init.lua/init.vim found under {{ nvim_target_dir }}"
+  when: nvim_init_file | length == 0
+
+- name: Read init file
+  ansible.builtin.slurp:
+    src: "{{ nvim_init_file }}"
+  register: nvim_init_content
+  when: nvim_init_file | length > 0
+
+- name: Detect plugin manager
+  ansible.builtin.set_fact:
+    nvim_plugin_manager: >-
+      {% set txt = (nvim_init_content.content | b64decode) %}
+      {% if 'lazy.nvim' in txt or 'require(\"lazy\")' in txt or "require('lazy')" in txt %}
+      lazy
+      {% elif 'packer' in txt or 'wbthomason/packer.nvim' in txt %}
+      packer
+      {% elif 'plug#begin' in txt or 'junegunn/vim-plug' in txt %}
+      plug
+      {% else %}
+      unknown
+      {% endif %}
+  when: nvim_init_file | length > 0
+
+- name: Show detected plugin manager
+  ansible.builtin.debug:
+    msg: "Neovim plugin manager detected: {{ nvim_plugin_manager }} (from {{ nvim_init_file }})"
+  when: nvim_init_file | length > 0
+
+- name: Run Lazy sync (headless)
+  ansible.builtin.command:
+    cmd: "nvim --headless '+Lazy! sync' +qa"
+  register: lazy_result
+  retries: 2
+  delay: 2
+  until: lazy_result.rc == 0
+  when: nvim_plugin_manager == 'lazy'
+
+- name: Run PackerSync (headless)
+  ansible.builtin.command:
+    cmd: "nvim --headless '+PackerSync' +qa"
+  register: packer_result
+  retries: 2
+  delay: 2
+  until: packer_result.rc == 0
+  when: nvim_plugin_manager == 'packer'
+
+- name: Run PlugInstall (headless)
+  ansible.builtin.command:
+    cmd: "nvim --headless '+silent! PlugInstall --sync' +qa"
+  register: plug_result
+  retries: 2
+  delay: 2
+  until: plug_result.rc == 0
+  when: nvim_plugin_manager == 'plug'
+
+- name: Warn when plugin manager is unknown
+  ansible.builtin.debug:
+    msg: "Neovim plugin manager could not be detected; please ensure your config provides a headless install command."
+  when: nvim_plugin_manager == 'unknown'

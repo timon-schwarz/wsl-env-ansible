@@ -1,0 +1,27 @@
+---
+- name: Ensure destination parent directory exists
+  ansible.builtin.file:
+    path: "{{ dotfile_dest | dirname }}"
+    state: directory
+    mode: "0755"
+
+- name: Stat destination
+  ansible.builtin.stat:
+    path: "{{ dotfile_dest }}"
+    follow: false
+  register: dotfile_dest_stat
+
+- name: Move existing file aside (backup)
+  ansible.builtin.command:
+    cmd: >-
+      mv -- "{{ dotfile_dest }}" "{{ dotfile_dest }}.{{ dotfiles_backup_suffix }}.{{ dotfiles_backup_ts }}"
+  when:
+    - dotfile_dest_stat.stat.exists
+    - not (dotfile_dest_stat.stat.islnk and (dotfile_dest_stat.stat.lnk_source | default('')) == dotfile_src)
+
+- name: Create symlink
+  ansible.builtin.file:
+    src: "{{ dotfile_src }}"
+    dest: "{{ dotfile_dest }}"
+    state: link
+    force: true

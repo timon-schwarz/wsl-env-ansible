@@ -1,0 +1,16 @@
+- name: Converge dotfiles + neovim only (fast)
+  hosts: localhost
+  # Speed is the primary goal for this playbook. We avoid gathering facts
+  # and only run userland configuration tasks.
+  gather_facts: false
+
+  pre_tasks:
+    - name: Validate wsl_profile
+      ansible.builtin.assert:
+        that:
+          - wsl_profile in ['work', 'uni', 'private']
+        fail_msg: "wsl_profile must be one of: work, uni, private"
+
+  roles:
+    - role: dotfiles
+    - role: neovim

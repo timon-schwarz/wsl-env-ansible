@@ -1,0 +1,26 @@
+---
+# Deploy dotfiles from repo -> $HOME.
+#
+# Precedence:
+# 1) files/dotfiles/common
+# 2) files/dotfiles/<profile>
+
+- name: Validate wsl_profile for dotfiles
+  ansible.builtin.assert:
+    that:
+      - wsl_profile in ['work', 'uni', 'private']
+    fail_msg: "wsl_profile must be one of: work, uni, private"
+
+- name: Compute dotfiles profile source directory
+  ansible.builtin.set_fact:
+    dotfiles_src_profile: "{{ dotfiles_src_profile_base }}/{{ wsl_profile }}"
+
+- name: Deploy common dotfiles
+  ansible.builtin.include_tasks: deploy_tree.yml
+  vars:
+    dotfiles_tree_src: "{{ dotfiles_src_common }}"
+
+- name: Deploy profile dotfiles overlay
+  ansible.builtin.include_tasks: deploy_tree.yml
+  vars:
+    dotfiles_tree_src: "{{ dotfiles_src_profile }}"

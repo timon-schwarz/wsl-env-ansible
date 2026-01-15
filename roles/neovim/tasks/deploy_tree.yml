@@ -1,0 +1,30 @@
+- name: Check if Neovim source dir exists
+  ansible.builtin.stat:
+    path: "{{ nvim_src_dir }}"
+  register: nvim_src_stat
+
+- name: Skip Neovim deployment when files/nvim is missing
+  ansible.builtin.debug:
+    msg: "Skipping Neovim config deployment: {{ nvim_src_dir }} not present."
+  when: not nvim_src_stat.stat.exists
+
+- name: Find Neovim config files to deploy
+  ansible.builtin.find:
+    paths: "{{ nvim_src_dir }}"
+    file_type: file
+    hidden: true
+  register: nvim_files_found
+  when: nvim_src_stat.stat.exists
+
+- name: Compute deployment timestamp
+  ansible.builtin.set_fact:
+    nvim_deploy_timestamp: "{{ lookup('pipe', 'date +%Y%m%d%H%M%S') }}"
+  when: nvim_src_stat.stat.exists
+
+- name: Deploy Neovim files (symlink)
+  ansible.builtin.include_tasks: link_one.yml
+  loop: "{{ nvim_files_found.files | rejectattr('path', 'search', '/(' ~ (nvim_exclude_filenames | join('|')) ~ ')$') | list }}"
+  loop_control:
+    loop_var: nvim_file
+    label: "{{ nvim_file.path | regex_replace('^' ~ (nvim_src_dir | regex_escape) ~ '/', '') }}"
+  when: nvim_src_stat.stat.exists

@@ -1,0 +1,3 @@
+# The only required variable is wsl_profile, passed via scripts.
+# Default here is private for safety.
+wsl_profile: private

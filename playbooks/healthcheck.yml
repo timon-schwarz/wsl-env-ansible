@@ -1,0 +1,13 @@
+- name: Verify WSL environment health
+  hosts: localhost
+  gather_facts: false
+
+  pre_tasks:
+    - name: Validate wsl_profile
+      ansible.builtin.assert:
+        that:
+          - wsl_profile in ['work', 'uni', 'private']
+        fail_msg: "wsl_profile must be one of: work, uni, private"
+
+  roles:
+    - role: healthcheck

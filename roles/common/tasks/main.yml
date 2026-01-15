@@ -1,0 +1,5 @@
+- name: Include common directories
+  ansible.builtin.import_tasks: dirs.yml
+
+- name: Include common packages
+  ansible.builtin.import_tasks: packages.yml

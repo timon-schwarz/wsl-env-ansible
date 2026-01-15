@@ -1,0 +1,11 @@
+# Private profile packages.
+- name: Install private profile packages (dnf)
+  ansible.builtin.dnf:
+    name:
+      # Encryption / secrets tooling (no secrets stored by this repo)
+      - age
+
+      # Convenience
+      - htop
+    state: present
+  become: true

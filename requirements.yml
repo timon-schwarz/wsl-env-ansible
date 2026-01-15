@@ -1,0 +1,4 @@
+---
+# Ansible Galaxy requirements (optional). Add collections/roles here if needed.
+collections: []
+roles: []

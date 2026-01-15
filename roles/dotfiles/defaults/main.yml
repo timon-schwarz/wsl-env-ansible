@@ -1,0 +1,17 @@
+---
+# Dotfiles are sourced from this repo and deployed into the current user's HOME.
+#
+# We intentionally avoid relying on gathered facts (for speed in dotfiles-only runs),
+# so we derive HOME from the process environment.
+
+home_dir: "{{ lookup('env', 'HOME') }}"
+
+# Source directories inside this repo. The playbooks live in ./playbooks, so ../files is stable.
+dotfiles_src_common: "{{ playbook_dir }}/../files/dotfiles/common"
+
+# Profile overlay directory is computed at runtime.
+dotfiles_src_profile_base: "{{ playbook_dir }}/../files/dotfiles"
+
+# Backup behavior: if a destination path already exists and is not the expected symlink,
+# it will be moved aside with this suffix.
+dotfiles_backup_suffix: "bak"

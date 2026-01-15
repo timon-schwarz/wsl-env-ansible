@@ -1,0 +1,2 @@
+- name: Include work profile packages
+  ansible.builtin.import_tasks: packages.yml

@@ -1,0 +1,22 @@
+# Work profile packages.
+- name: Install work profile packages (dnf)
+  ansible.builtin.dnf:
+    name:
+      # Network/ops tooling
+      - bind-utils
+      - nmap
+      - tcpdump
+      - traceroute
+      - mtr
+      - whois
+      - ethtool
+      - iperf3
+
+      # Automation / infra tooling
+      - ansible
+      - ansible-lint
+
+      # Useful CLIs
+      - openssl
+    state: present
+  become: true

@@ -1,0 +1,57 @@
+---
+# Deploy all regular files under dotfiles_tree_src into $HOME preserving relative paths.
+#
+# - For each file in dotfiles_tree_src:
+#   - destination is $HOME/<relative path>
+#   - ensure destination parent directory exists
+#   - if destination exists and is not the expected symlink, move it aside
+#   - create symlink pointing to the file in the repo
+#
+# This design keeps iteration fast: edit files in repo, re-run dotfiles.sh, links stay valid.
+
+- name: Check dotfiles source tree exists
+  ansible.builtin.stat:
+    path: "{{ dotfiles_tree_src }}"
+  register: dotfiles_tree_stat
+
+- name: Skip missing dotfiles tree
+  ansible.builtin.debug:
+    msg: "Dotfiles tree not found, skipping: {{ dotfiles_tree_src }}"
+  when: not dotfiles_tree_stat.stat.exists
+
+- name: Find files in dotfiles tree
+  ansible.builtin.find:
+    paths: "{{ dotfiles_tree_src }}"
+    file_type: file
+    hidden: true
+    excludes:
+      - ".gitkeep"
+  register: dotfiles_tree_files
+  when: dotfiles_tree_stat.stat.exists
+
+- name: No dotfiles found in tree
+  ansible.builtin.debug:
+    msg: "No dotfiles to deploy in: {{ dotfiles_tree_src }}"
+  when:
+    - dotfiles_tree_stat.stat.exists
+    - (dotfiles_tree_files.files | length) == 0
+
+- name: Compute backup timestamp
+  ansible.builtin.set_fact:
+    dotfiles_backup_ts: "{{ lookup('pipe', 'date +%Y%m%d%H%M%S') }}"
+  when:
+    - dotfiles_tree_stat.stat.exists
+    - (dotfiles_tree_files.files | length) > 0
+
+- name: Deploy dotfiles (symlinks)
+  ansible.builtin.include_tasks: link_one.yml
+  loop: "{{ dotfiles_tree_files.files }}"
+  loop_control:
+    label: "{{ item.path }}"
+  vars:
+    dotfile_src: "{{ item.path }}"
+    dotfile_rel: "{{ item.path | regex_replace('^' ~ (dotfiles_tree_src | regex_escape) ~ '/?', '') }}"
+    dotfile_dest: "{{ home_dir }}/{{ dotfile_rel }}"
+  when:
+    - dotfiles_tree_stat.stat.exists
+    - (dotfiles_tree_files.files | length) > 0
