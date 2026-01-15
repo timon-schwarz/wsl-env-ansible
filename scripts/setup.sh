@@ -8,9 +8,10 @@ usage() {
   cat >&2 <<'EOF'
 Usage: ./scripts/setup.sh <work|uni|private>
 
-This script is intended to be run inside the repo, even if the repo is located on /mnt/c.
-It will clone the repo into the WSL Linux filesystem (under your home directory) and run
-convergence from there.
+This script may be run from a Windows-mounted working copy (/mnt/c/...).
+It clones the repo into the WSL Linux filesystem (~/src/...) and runs converge from there.
+
+Note: The bootstrap clone uses HTTPS if SSH keys are not yet configured.
 EOF
 }
 
@@ -36,13 +37,16 @@ command -v dnf  >/dev/null 2>&1 || { err "dnf not found (are you on Fedora?)"; e
 # When a repo is located under /mnt/c (NTFS), WSL often reports permissive permissions
 # (effectively “world-writable”). Ansible treats this as unsafe and ignores ansible.cfg
 # found in that directory, which breaks inventory/config discovery and causes confusing
-# warnings like:
-#   "Ansible is being run in a world writable directory ... ignoring it as an ansible.cfg source."
+# warnings.
+# Running from a clone inside the Linux filesystem (ext4) avoids this.
 #
-# To avoid this, we run Ansible from a clone inside the Linux filesystem (ext4), e.g. ~/src,
-# where permissions behave as expected and Ansible will honor ansible.cfg normally.
+# --- Why we may clone via HTTPS during setup ---
+# The repo on Windows might use an SSH remote (git@github.com:...).
+# On a fresh WSL distro, SSH keys typically are not configured yet, so cloning via SSH fails.
+# Therefore, setup clones via HTTPS (no keys required) for the initial bootstrap.
+# After SSH keys are set up later, you can switch remotes back to SSH.
 
-# Ensure we can determine the repo URL from git.
+# Ensure git exists (needed to discover origin and clone)
 if ! command -v git >/dev/null 2>&1; then
   log "Installing git (required to clone the repo)..."
   sudo dnf install -y git
@@ -50,7 +54,7 @@ fi
 
 if ! git rev-parse --is-inside-work-tree >/dev/null 2>&1; then
   err "This script must be run from within the repository so it can discover the origin URL."
-  err "Hint: cd into the repo on Windows or Linux and run: ./scripts/setup.sh ${PROFILE}"
+  err "Hint: cd into the repo and run: ./scripts/setup.sh ${PROFILE}"
   exit 1
 fi
 
@@ -61,28 +65,31 @@ if [[ -z "${REPO_URL}" ]]; then
   exit 1
 fi
 
+# Convert SSH-style GitHub URL to HTTPS for bootstrap clone
+# Examples:
+#   git@github.com:timon-schwarz/wsl-env-ansible.git  -> https://github.com/timon-schwarz/wsl-env-ansible.git
+#   ssh://git@github.com/timon-schwarz/wsl-env-ansible.git -> https://github.com/timon-schwarz/wsl-env-ansible.git
+REPO_URL_HTTPS="$REPO_URL"
+if [[ "$REPO_URL" =~ ^git@github\.com: ]]; then
+  REPO_URL_HTTPS="https://github.com/${REPO_URL#git@github.com:}"
+elif [[ "$REPO_URL" =~ ^ssh://git@github\.com/ ]]; then
+  REPO_URL_HTTPS="https://github.com/${REPO_URL#ssh://git@github.com/}"
+fi
+
 TARGET_BASE="${HOME}/src"
 TARGET_DIR="${TARGET_BASE}/wsl-ansible"
 
 log "Profile: ${PROFILE}"
 log "Repo origin: ${REPO_URL}"
+log "Bootstrap clone URL: ${REPO_URL_HTTPS}"
 log "Linux clone target: ${TARGET_DIR}"
 
 mkdir -p "${TARGET_BASE}"
 
 if [[ ! -d "${TARGET_DIR}/.git" ]]; then
   log "Cloning repo into Linux filesystem..."
-  git clone "${REPO_URL}" "${TARGET_DIR}"
+  git clone "${REPO_URL_HTTPS}" "${TARGET_DIR}"
 else
-  # Respect your preference: do not auto-update. Just ensure the remote matches.
-  existing_url="$(git -C "${TARGET_DIR}" config --get remote.origin.url || true)"
-  if [[ -n "${existing_url}" && "${existing_url}" != "${REPO_URL}" ]]; then
-    err "Existing clone at ${TARGET_DIR} points to a different origin:"
-    err "  existing: ${existing_url}"
-    err "  expected: ${REPO_URL}"
-    err "Resolve this manually (delete the directory or fix the remote), then re-run."
-    exit 1
-  fi
   log "Linux clone already exists; not updating it automatically (by design)."
   log "If you want updates, run: git -C \"${TARGET_DIR}\" pull"
 fi
@@ -96,3 +103,18 @@ sudo dnf install -y \
 log "Running full converge from Linux filesystem clone..."
 cd "${TARGET_DIR}"
 ./scripts/converge.sh "${PROFILE}"
+
+# Optional: if SSH is already usable, switch the Linux clone's origin back to SSH
+# (So future pulls use SSH without you having to change anything.)
+if command -v ssh >/dev/null 2>&1; then
+  if ssh -o BatchMode=yes -o StrictHostKeyChecking=accept-new -T git@github.com >/dev/null 2>&1; then
+    if [[ "$REPO_URL" =~ ^git@github\.com: ]]; then
+      log "SSH auth to GitHub works; switching Linux clone origin back to SSH."
+      git -C "${TARGET_DIR}" remote set-url origin "${REPO_URL}"
+    fi
+  else
+    log "SSH auth to GitHub not available yet; leaving Linux clone origin as HTTPS."
+    log "After you configure SSH keys, you may switch it with:"
+    log "  git -C \"${TARGET_DIR}\" remote set-url origin \"${REPO_URL}\""
+  fi
+fi
