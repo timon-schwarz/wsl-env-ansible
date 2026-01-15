@@ -110,13 +110,35 @@ log "Linux clone target: ${TARGET_DIR}"
 
 mkdir -p "${TARGET_BASE}"
 
+
 if [[ ! -d "${TARGET_DIR}/.git" ]]; then
   log "Cloning repo into Linux filesystem..."
   git clone "${REPO_URL_HTTPS}" "${TARGET_DIR}"
 else
-  log "Linux clone already exists; not updating it automatically (by design)."
-  log "If you want updates, run: git -C \"${TARGET_DIR}\" pull"
+  log "Linux clone already exists."
+
+  cd "${TARGET_DIR}"
+
+  # Ensure we are on a branch (not detached HEAD)
+  if ! git symbolic-ref -q HEAD >/dev/null; then
+    err "Linux clone is in detached HEAD state."
+    err "Resolve manually before running setup:"
+    err "  cd ${TARGET_DIR} && git status"
+    exit 1
+  fi
+
+  # Ensure working tree is clean
+  if ! git diff --quiet || ! git diff --cached --quiet; then
+    err "Linux clone has uncommitted changes."
+    err "Resolve manually before running setup:"
+    err "  cd ${TARGET_DIR} && git status"
+    exit 1
+  fi
+
+  log "Updating Linux clone (fast-forward only)..."
+  git pull --ff-only
 fi
+
 
 log "Installing prerequisites (ansible + dependencies)..."
 sudo dnf install -y \
@@ -126,6 +148,7 @@ sudo dnf install -y \
 
 log "Running full converge from Linux filesystem clone..."
 cd "${TARGET_DIR}"
+chmod +x ./scripts/*.sh || true
 ./scripts/converge.sh "${PROFILE}"
 
 # Optional: if SSH is already usable, switch the Linux clone's origin back to SSH
