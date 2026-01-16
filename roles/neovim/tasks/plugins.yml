@@ -1,3 +1,9 @@
+- name: Default Neovim plugin facts (safe when no config exists)
+  ansible.builtin.set_fact:
+    nvim_has_init: false
+    nvim_init_path: ""
+    nvim_plugin_manager: "none"
+
 - name: Check Neovim init.lua
   ansible.builtin.stat:
     path: "{{ nvim_target_dir }}/init.lua"
@@ -8,25 +14,25 @@
     path: "{{ nvim_target_dir }}/init.vim"
   register: nvim_init_vim
 
+- name: Determine whether Neovim has an init file
+  ansible.builtin.set_fact:
+    nvim_has_init: "{{ (nvim_init_lua.stat.exists | default(false)) or (nvim_init_vim.stat.exists | default(false)) }}"
+
 - name: Skip plugin installation if no init file is present
   ansible.builtin.debug:
     msg: "Skipping Neovim plugin installation: no init.lua/init.vim found under {{ nvim_target_dir }}."
-  when: not nvim_init_lua.stat.exists and not nvim_init_vim.stat.exists
+  when: not nvim_has_init
 
 - name: Select init file path
   ansible.builtin.set_fact:
     nvim_init_path: "{{ (nvim_init_lua.stat.exists) | ternary(nvim_target_dir ~ '/init.lua', nvim_target_dir ~ '/init.vim') }}"
-  when: nvim_init_lua.stat.exists or nvim_init_vim.stat.exists
+  when: nvim_has_init
 
 - name: Read init file
   ansible.builtin.slurp:
     src: "{{ nvim_init_path }}"
   register: nvim_init_slurp
-  when: nvim_init_path is defined
-
-- name: Default plugin manager to none
-  ansible.builtin.set_fact:
-    nvim_plugin_manager: "none"
+  when: nvim_has_init
 
 - name: Determine plugin manager
   ansible.builtin.set_fact:
@@ -43,14 +49,15 @@
       unknown
       {% endif %}
   when:
-    - nvim_init_slurp is defined
-    - not (nvim_init_slurp.skipped | default(false))
+    - nvim_has_init
     - nvim_init_slurp.content is defined
 
 - name: Announce detected plugin manager
   ansible.builtin.debug:
     msg: "Neovim plugin manager detected: {{ nvim_plugin_manager }} (init={{ nvim_init_path }})"
-  when: nvim_plugin_manager is defined
+  when:
+    - nvim_has_init
+    - nvim_plugin_manager != "none"
 
 - name: Run Lazy sync (headless)
   ansible.builtin.command:
@@ -59,7 +66,9 @@
   retries: 2
   delay: 2
   until: nvim_plugin_cmd.rc == 0
-  when: nvim_plugin_manager == 'lazy'
+  when:
+    - nvim_has_init
+    - nvim_plugin_manager == 'lazy'
 
 - name: Run Packer sync (headless)
   ansible.builtin.command:
@@ -68,7 +77,9 @@
   retries: 2
   delay: 2
   until: nvim_plugin_cmd.rc == 0
-  when: nvim_plugin_manager == 'packer'
+  when:
+    - nvim_has_init
+    - nvim_plugin_manager == 'packer'
 
 - name: Run vim-plug install (headless)
   ansible.builtin.command:
@@ -77,14 +88,20 @@
   retries: 2
   delay: 2
   until: nvim_plugin_cmd.rc == 0
-  when: nvim_plugin_manager == 'vim-plug'
+  when:
+    - nvim_has_init
+    - nvim_plugin_manager == 'vim-plug'
 
 - name: Warn when plugin manager is unknown
   ansible.builtin.debug:
     msg: "Could not detect a supported plugin manager in {{ nvim_init_path }}. Supported: lazy.nvim, packer.nvim, vim-plug."
-  when: nvim_plugin_manager == 'unknown'
+  when:
+    - nvim_has_init
+    - nvim_plugin_manager == 'unknown'
 
 - name: Warn when no plugin manager is detected
   ansible.builtin.debug:
     msg: "Could not detect a plugin manager in {{ nvim_init_path }}."
-  when: nvim_plugin_manager == 'none'
+  when:
+    - nvim_has_init
+    - nvim_plugin_manager == 'none'
