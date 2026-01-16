@@ -24,6 +24,7 @@
     paths: "{{ dotfiles_tree_src }}"
     file_type: file
     hidden: true
+    recurse: true
     excludes:
       - ".gitkeep"
   register: dotfiles_tree_files

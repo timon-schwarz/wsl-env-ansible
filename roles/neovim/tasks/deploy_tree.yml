@@ -13,6 +13,7 @@
     paths: "{{ nvim_src_dir }}"
     file_type: file
     hidden: true
+    recurse: true
   register: nvim_files_found
   when: nvim_src_stat.stat.exists
 
