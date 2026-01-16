@@ -1,6 +1,6 @@
 - name: Compute relative path for Neovim file
   ansible.builtin.set_fact:
-    nvim_rel_path: "{{ nvim_file.path | regex_replace('^' ~ (nvim_src_dir | regex_escape) ~ '/?', '') }}"
+    nvim_rel_path: "{{ nvim_file.path | relpath(nvim_src_dir) }}"
     nvim_dest_path: "{{ nvim_target_dir }}/{{ nvim_rel_path }}"
 
 - name: Ensure destination parent directory exists

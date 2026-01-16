@@ -20,12 +20,27 @@
 - name: Compute deployment timestamp
   ansible.builtin.set_fact:
     nvim_deploy_timestamp: "{{ lookup('pipe', 'date +%Y%m%d%H%M%S') }}"
-  when: nvim_src_stat.stat.exists
+  when:
+    - nvim_src_stat.stat.exists
+    - nvim_files_found.files is defined
+    - (nvim_files_found.files | length) > 0
 
 - name: Deploy Neovim files (symlink)
   ansible.builtin.include_tasks: link_one.yml
-  loop: "{{ nvim_files_found.files | rejectattr('path', 'search', '/(' ~ (nvim_exclude_filenames | join('|')) ~ ')$') | list }}"
+  loop: >-
+    {{
+      nvim_files_found.files
+      | rejectattr('path', 'search', '/(' ~ (nvim_exclude_filenames | join('|')) ~ ')$')
+      | list
+    }}
   loop_control:
     loop_var: nvim_file
-    label: "{{ nvim_file.path | regex_replace('^' ~ (nvim_src_dir | regex_escape) ~ '/', '') }}"
-  when: nvim_src_stat.stat.exists
+    label: "{{ nvim_file.path | relpath(nvim_src_dir) }}"
+  vars:
+    dotfile_src: "{{ nvim_file.path }}"
+    dotfile_rel: "{{ nvim_file.path | relpath(nvim_src_dir) }}"
+    dotfile_dest: "{{ nvim_dest_dir }}/{{ dotfile_rel }}"
+  when:
+    - nvim_src_stat.stat.exists
+    - nvim_files_found.files is defined
+    - (nvim_files_found.files | length) > 0

@@ -1,28 +1,9 @@
 ---
 # Deploy all regular files under dotfiles_tree_src into $HOME preserving relative paths.
-
-- name: Debug dotfiles inputs
-  ansible.builtin.debug:
-    msg:
-      - "dotfiles_tree_src={{ dotfiles_tree_src }}"
-      - "home_dir={{ home_dir }}"
-      - "wsl_profile={{ wsl_profile | default('UNSET') }}"
-  when: dotfiles_debug | default(false)
-
 - name: Check dotfiles source tree exists
   ansible.builtin.stat:
     path: "{{ dotfiles_tree_src }}"
   register: dotfiles_tree_stat
-
-- name: Debug dotfiles_tree_stat
-  ansible.builtin.debug:
-    var: dotfiles_tree_stat
-  when: dotfiles_debug | default(false)
-
-- name: Skip missing dotfiles tree
-  ansible.builtin.debug:
-    msg: "Dotfiles tree not found, skipping: {{ dotfiles_tree_src }}"
-  when: not dotfiles_tree_stat.stat.exists
 
 - name: Find files in dotfiles tree
   ansible.builtin.find:
@@ -35,52 +16,10 @@
   register: dotfiles_tree_files
   when: dotfiles_tree_stat.stat.exists
 
-- name: Debug find results summary
-  ansible.builtin.debug:
-    msg:
-      - "find matched={{ dotfiles_tree_files.matched | default('n/a') }}"
-      - "files_len={{ (dotfiles_tree_files.files | length) if (dotfiles_tree_files.files is defined) else 'UNDEF' }}"
-  when:
-    - dotfiles_debug | default(false)
-    - dotfiles_tree_stat.stat.exists
-
-- name: Debug first 20 matched file paths
-  ansible.builtin.debug:
-    msg: "{{ (dotfiles_tree_files.files | map(attribute='path') | list)[:20] }}"
-  when:
-    - dotfiles_debug | default(false)
-    - dotfiles_tree_stat.stat.exists
-    - dotfiles_tree_files.files is defined
-
-- name: No dotfiles found in tree
-  ansible.builtin.debug:
-    msg:
-      - "No dotfiles to deploy in: {{ dotfiles_tree_src }}"
-      - "find matched={{ dotfiles_tree_files.matched | default('n/a') }}"
-      - "files (first 20)={{ (dotfiles_tree_files.files | map(attribute='path') | list)[:20] if (dotfiles_tree_files.files is defined) else 'UNDEF' }}"
-  when:
-    - dotfiles_tree_stat.stat.exists
-    - dotfiles_tree_files.files is not defined or (dotfiles_tree_files.files | length) == 0
-
 - name: Compute backup timestamp
   ansible.builtin.set_fact:
     dotfiles_backup_ts: "{{ lookup('pipe', 'date +%Y%m%d%H%M%S') }}"
   when:
-    - dotfiles_tree_stat.stat.exists
-    - dotfiles_tree_files.files is defined
-    - (dotfiles_tree_files.files | length) > 0
-
-- name: Debug sample of computed rel/dest mappings (first 10)
-  ansible.builtin.debug:
-    msg: >-
-      src={{ item.path }}
-      rel={{ item.path | relpath(dotfiles_tree_src) }}
-      dest={{ home_dir }}/{{ item.path | relpath(dotfiles_tree_src) }}
-  loop: "{{ dotfiles_tree_files.files[:10] }}"
-  loop_control:
-    label: "{{ item.path }}"
-  when:
-    - dotfiles_debug | default(false)
     - dotfiles_tree_stat.stat.exists
     - dotfiles_tree_files.files is defined
     - (dotfiles_tree_files.files | length) > 0
