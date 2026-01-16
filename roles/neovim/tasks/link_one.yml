@@ -7,7 +7,6 @@
   ansible.builtin.file:
     path: "{{ nvim_dest_path | dirname }}"
     state: directory
-    mode: "0755"
 
 - name: Stat destination path
   ansible.builtin.stat:
