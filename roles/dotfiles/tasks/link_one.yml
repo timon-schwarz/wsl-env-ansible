@@ -3,7 +3,6 @@
   ansible.builtin.file:
     path: "{{ dotfile_dest | dirname }}"
     state: directory
-    mode: "0755"
 
 - name: Stat destination
   ansible.builtin.stat:
