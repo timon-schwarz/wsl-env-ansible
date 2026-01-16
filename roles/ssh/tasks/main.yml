@@ -1,3 +1,4 @@
+
 ---
 # SSH role: import Windows-host keys into the Linux filesystem for the active wsl_profile.
 # This role intentionally does NOT manage ~/.ssh/config (dotfiles role owns content).
