@@ -38,7 +38,10 @@
       {% else %}
       unknown
       {% endif %}
-  when: nvim_init_slurp is defined
+  when:
+    - nvim_init_slurp is defined
+    - not (nvim_init_slurp.skipped | default(false))
+    - nvim_init_slurp.content is defined
 
 - name: Announce detected plugin manager
   ansible.builtin.debug:
@@ -47,7 +50,7 @@
 
 - name: Run Lazy sync (headless)
   ansible.builtin.command:
-    cmd: "nvim --headless +\"Lazy! sync\" +qa"
+    cmd: 'nvim --headless +"Lazy! sync" +qa'
   register: nvim_plugin_cmd
   retries: 2
   delay: 2
@@ -56,7 +59,7 @@
 
 - name: Run Packer sync (headless)
   ansible.builtin.command:
-    cmd: "nvim --headless +\"PackerSync\" +qa"
+    cmd: 'nvim --headless +"PackerSync" +qa'
   register: nvim_plugin_cmd
   retries: 2
   delay: 2
@@ -65,7 +68,7 @@
 
 - name: Run vim-plug install (headless)
   ansible.builtin.command:
-    cmd: "nvim --headless +\"silent! PlugInstall --sync\" +qa"
+    cmd: 'nvim --headless +"silent! PlugInstall --sync" +qa'
   register: nvim_plugin_cmd
   retries: 2
   delay: 2
