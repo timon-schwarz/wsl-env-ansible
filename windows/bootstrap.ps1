@@ -33,11 +33,11 @@ function Assert-Command([string]$Name) {
     }
 }
 
-function Escape-BashSingleQuoted([string]$Value) {
-    # Returns a string safe to embed inside single quotes in bash.
-    # Example: abc'def -> abc'"'"'def
-    return ($Value -replace "'", "'\"'\"'"
-    )
+function Escape-BashSingleQuoted {
+    param([Parameter(Mandatory)][string]$Value)
+
+    # Replacement is: '"'"'
+    return ($Value -replace '''', '''"''"''')
 }
 
 function Ensure-WindowsSshKeys {
@@ -83,9 +83,19 @@ function Ensure-WindowsSshKeys {
         Write-Host "Generating SSH keypair for profile '$p'..."
         Write-Host "  $keyPath"
 
-        & ssh-keygen -t ed25519 -f "$keyPath" -N "" -C "$comment" | Out-Null
-        if ($LASTEXITCODE -ne 0) {
-            throw "ssh-keygen failed while creating key for profile '$p' (exit code $LASTEXITCODE)."
+        # Use cmd.exe to preserve -N "" exactly (Start-Process rejects empty args).
+        $cmd = @(
+            "ssh-keygen",
+            "-q",
+            "-t", "ed25519",
+            "-f", ('"' + $keyPath + '"'),
+            "-N", '""',
+            "-C", ('"' + $comment + '"')
+        ) -join ' '
+
+        $proc = Start-Process -FilePath "cmd.exe" -ArgumentList @("/c", $cmd) -NoNewWindow -Wait -PassThru
+        if ($proc.ExitCode -ne 0) {
+            throw "ssh-keygen failed while creating key for profile '$p' (exit code $($proc.ExitCode))."
         }
     }
 }
