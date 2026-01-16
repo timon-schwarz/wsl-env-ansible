@@ -1,0 +1,12 @@
+ssh_keys_enabled: true
+
+# Where Windows bootstrap writes the Windows user profile path (recommended)
+ssh_windows_userprofile_file: /etc/wsl-windows-userprofile
+
+# Relative path under %USERPROFILE% where you store keys
+ssh_windows_keys_rel: .ssh/wsl-env
+
+# Linux destination base
+ssh_linux_keys_dir: "{{ ansible_user_dir }}/.ssh/keys"
+# Your profiles already exist; reuse wsl_profile
+# Expected: work / uni / private

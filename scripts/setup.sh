@@ -148,7 +148,7 @@ sudo dnf install -y \
 
 log "Running full converge from Linux filesystem clone..."
 cd "${TARGET_DIR}"
-chmod +x ./scripts/*.sh || true
+chmod +x ./scripts/*.sh || true 
 ./scripts/converge.sh "${PROFILE}"
 
 # Optional: if SSH is already usable, switch the Linux clone's origin back to SSH

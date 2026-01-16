@@ -33,6 +33,63 @@ function Assert-Command([string]$Name) {
     }
 }
 
+function Escape-BashSingleQuoted([string]$Value) {
+    # Returns a string safe to embed inside single quotes in bash.
+    # Example: abc'def -> abc'"'"'def
+    return ($Value -replace "'", "'\"'\"'"
+    )
+}
+
+function Ensure-WindowsSshKeys {
+    <#
+      Ensures Windows-side SSH keys exist for each profile under:
+        %USERPROFILE%\.ssh\wsl-env\<profile>\id_ed25519(.pub)
+
+      If a keypair is missing for a profile, it is created automatically.
+
+      Notes:
+      - Uses OpenSSH's ssh-keygen.
+      - Generates ed25519 keys with an empty passphrase for non-interactive determinism.
+        If you prefer passphrases, generate them manually and this function will keep them.
+    #>
+
+    Assert-Command "ssh-keygen"
+
+    $base = Join-Path $env:USERPROFILE ".ssh\wsl-env"
+    New-Item -ItemType Directory -Force -Path $base | Out-Null
+
+    foreach ($p in @("work", "uni", "private")) {
+        $dir = Join-Path $base $p
+        New-Item -ItemType Directory -Force -Path $dir | Out-Null
+
+        $keyPath = Join-Path $dir "id_ed25519"
+        $pubPath = "$keyPath.pub"
+
+        $hasPriv = Test-Path -LiteralPath $keyPath
+        $hasPub  = Test-Path -LiteralPath $pubPath
+
+        if ($hasPriv -and $hasPub) {
+            Write-Host "SSH keypair already present for profile '$p': $keyPath"
+            continue
+        }
+
+        if ($hasPriv -or $hasPub) {
+            Write-Host "Partial SSH keypair detected for profile '$p'. Regenerating fresh keypair..."
+            Remove-Item -Force -ErrorAction SilentlyContinue -LiteralPath $keyPath | Out-Null
+            Remove-Item -Force -ErrorAction SilentlyContinue -LiteralPath $pubPath | Out-Null
+        }
+
+        $comment = "wsl-env-$p@$env:COMPUTERNAME"
+        Write-Host "Generating SSH keypair for profile '$p'..."
+        Write-Host "  $keyPath"
+
+        & ssh-keygen -t ed25519 -f "$keyPath" -N "" -C "$comment" | Out-Null
+        if ($LASTEXITCODE -ne 0) {
+            throw "ssh-keygen failed while creating key for profile '$p' (exit code $LASTEXITCODE)."
+        }
+    }
+}
+
 function Get-ExistingDistros {
     & wsl.exe -l -q 2>$null | ForEach-Object { $_.Trim() } | Where-Object { $_ -ne "" }
 }
@@ -80,6 +137,34 @@ function Invoke-WslRoot([string]$DistroName, [string]$Command) {
     $wrapped = "echo '$b64' | base64 -d | bash"
     $out = & wsl.exe -d $DistroName -u root -- bash -lc $wrapped 2>&1
     return ,$out
+}
+
+function Write-WindowsUserProfileFile([string]$DistroName) {
+    $userProfile = $env:USERPROFILE
+    if ([string]::IsNullOrWhiteSpace($userProfile)) {
+        throw "USERPROFILE is empty; cannot write /etc/wsl-windows-userprofile"
+    }
+
+    # Bash single-quote safe
+    $escaped = Escape-BashSingleQuoted -Value $userProfile
+
+    $script = @'
+set -euo pipefail
+f="/etc/wsl-windows-userprofile"
+tmp="/tmp/wsl-windows-userprofile.$$"
+
+printf "%s\n" "$WSL_WIN_USERPROFILE" > "$tmp"
+install -m 0644 "$tmp" "$f"
+rm -f "$tmp"
+'@
+
+    $full = "WSL_WIN_USERPROFILE='$escaped'`n" + $script
+    $out = Invoke-WslRoot -DistroName $DistroName -Command $full
+    if ($LASTEXITCODE -ne 0) {
+        $detail = ($out | Out-String).Trim()
+        throw "Failed to write /etc/wsl-windows-userprofile for ${DistroName}:`n$detail"
+    }
+    Write-Host "Wrote /etc/wsl-windows-userprofile inside ${DistroName}."
 }
 
 function Test-UserExists([string]$DistroName, [string]$Username) {
@@ -241,6 +326,7 @@ $RepoRootWsl = Convert-WindowsPathToWsl -WindowsPath $RepoRoot
 # Main
 # -----------------------------
 Assert-Command "wsl.exe"
+Ensure-WindowsSshKeys
 Assert-ImagePath -Path $ImagePath
 
 Write-Host "Using Fedora WSL image:"
@@ -277,6 +363,9 @@ foreach ($distro in $DistroNames) {
 
     # 3) Set default user via /etc/wsl.conf
     Set-DefaultUserViaWslConf -DistroName $distro -Username $username
+
+    # 3b) Record Windows USERPROFILE inside the distro for deterministic key import later
+    Write-WindowsUserProfileFile -DistroName $distro
 
     # 4) Restart the distro so WSL applies the new default user
     Write-Host "Terminating $distro to apply default user setting..."

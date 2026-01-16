@@ -11,6 +11,7 @@
 
   roles:
     - role: wsl
+    - role: ssh
     - role: common
     - role: "profile_{{ wsl_profile }}"
     - role: dotfiles
