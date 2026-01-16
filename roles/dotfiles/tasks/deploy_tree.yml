@@ -74,8 +74,8 @@
   ansible.builtin.debug:
     msg: >-
       src={{ item.path }}
-      rel={{ item.path | regex_replace('^' ~ (dotfiles_tree_src | regex_escape) ~ '/?', '') }}
-      dest={{ home_dir }}/{{ item.path | regex_replace('^' ~ (dotfiles_tree_src | regex_escape) ~ '/?', '') }}
+      rel={{ item.path | relpath(dotfiles_tree_src) }}
+      dest={{ home_dir }}/{{ item.path | relpath(dotfiles_tree_src) }}
   loop: "{{ dotfiles_tree_files.files[:10] }}"
   loop_control:
     label: "{{ item.path }}"
@@ -92,7 +92,7 @@
     label: "{{ item.path }}"
   vars:
     dotfile_src: "{{ item.path }}"
-    dotfile_rel: "{{ item.path | regex_replace('^' ~ (dotfiles_tree_src | regex_escape) ~ '/?', '') }}"
+    dotfile_rel: "{{ item.path | relpath(dotfiles_tree_src) }}"
     dotfile_dest: "{{ home_dir }}/{{ dotfile_rel }}"
   when:
     - dotfiles_tree_stat.stat.exists
