@@ -155,8 +155,14 @@ function Write-WindowsUserProfileFile([string]$DistroName) {
         throw "USERPROFILE is empty; cannot write /etc/wsl-windows-userprofile"
     }
 
+    # Convert to WSL-style path (e.g. /mnt/c/Users/...)
+    $wslUserProfile = Convert-WindowsPathToWsl -WindowsPath $userProfile
+    if ([string]::IsNullOrWhiteSpace($wslUserProfile)) {
+        throw "Convert-WindowsPathToWsl returned an empty path for USERPROFILE '$userProfile'"
+    }
+
     # Bash single-quote safe
-    $escaped = Escape-BashSingleQuoted -Value $userProfile
+    $escaped = Escape-BashSingleQuoted -Value $wslUserProfile
 
     $script = @'
 set -euo pipefail
@@ -174,7 +180,8 @@ rm -f "$tmp"
         $detail = ($out | Out-String).Trim()
         throw "Failed to write /etc/wsl-windows-userprofile for ${DistroName}:`n$detail"
     }
-    Write-Host "Wrote /etc/wsl-windows-userprofile inside ${DistroName}."
+
+    Write-Host "Wrote /etc/wsl-windows-userprofile inside ${DistroName}: $wslUserProfile"
 }
 
 function Test-UserExists([string]$DistroName, [string]$Username) {
@@ -280,8 +287,6 @@ rm -f "$tmp"
     }
 }
 
-
-
 function Run-FedoraOobe-Mandatory([string]$DistroName) {
     Write-Host ""
     Write-Host "Running Fedora OOBE for $DistroName (mandatory)."
@@ -312,14 +317,51 @@ function Start-Distro([string]$DistroName) {
 }
 
 function Convert-WindowsPathToWsl([string]$WindowsPath) {
-    if ([string]::IsNullOrWhiteSpace($WindowsPath)) { throw "WindowsPath is required." }
+    if ([string]::IsNullOrWhiteSpace($WindowsPath)) {
+        throw "WindowsPath is required."
+    }
 
-    $wslPath = & wsl.exe wslpath -a -u -- "$WindowsPath" 2>$null
-    if ($LASTEXITCODE -ne 0 -or [string]::IsNullOrWhiteSpace($wslPath)) {
+    $p = $WindowsPath.Trim()
+
+    # If caller passed a quoted string, strip outer quotes
+    if ($p.Length -ge 2 -and $p.StartsWith('"') -and $p.EndsWith('"')) {
+        $p = $p.Substring(1, $p.Length - 2)
+    }
+
+    # Normalize for wslpath: convert backslashes to forward slashes.
+    # wslpath reliably accepts C:/Users/... and avoids the backslash-mangling edge case.
+    $normalized = $p -replace '\\', '/'
+
+    # First attempt: wslpath
+    $wslPath = & wsl.exe wslpath -a -u -- "$normalized" 2>$null
+    if ($LASTEXITCODE -eq 0 -and -not [string]::IsNullOrWhiteSpace($wslPath)) {
+        $out = $wslPath.Trim()
+        if ($out -match '^/mnt/[a-z]/') {
+            return $out
+        }
+        # If wslpath returned something unexpected, fall through to manual conversion
+    }
+
+    # Fallback: manual conversion for default automount (/mnt/<drive>/...)
+    # Supports: C:\..., C:/..., UNC is intentionally not supported.
+    if ($normalized -notmatch '^[A-Za-z]:/') {
+        throw "Failed to convert Windows path to WSL path (wslpath failed and fallback unsupported for format): $WindowsPath"
+    }
+
+    $drive = $normalized.Substring(0, 1).ToLowerInvariant()
+    $rest  = $normalized.Substring(2)  # drops "C:"
+    $rest  = $rest.TrimStart('/')
+
+    $fallback = "/mnt/$drive/$rest"
+
+    # Final validation
+    if ($fallback -notmatch '^/mnt/[a-z]/') {
         throw "Failed to convert Windows path to WSL path: $WindowsPath"
     }
-    return $wslPath.Trim()
+
+    return $fallback
 }
+
 
 # -----------------------------
 # Configuration

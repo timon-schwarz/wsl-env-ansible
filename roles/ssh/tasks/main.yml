@@ -2,16 +2,16 @@
 # SSH role: import Windows-host keys into the Linux filesystem for the active wsl_profile.
 # This role intentionally does NOT manage ~/.ssh/config (dotfiles role owns content).
 
-- name: Ensure ~/.ssh and per-profile key dir exist
+- name: Ensure ~/.ssh and ssh key destination dir exist
   ansible.builtin.file:
     path: "{{ item }}"
     state: directory
     mode: "0700"
   loop:
     - "{{ ansible_user_dir }}/.ssh"
-    - "{{ ansible_user_dir }}/.ssh/keys"
+    - "{{ ssh_linux_keys_dir }}"
 
-- name: Read Windows userprofile (written by windows/bootstrap.ps1)
+- name: Read WSL-form Windows userprofile path (written by windows/bootstrap.ps1)
   ansible.builtin.slurp:
     src: "{{ ssh_windows_userprofile_file }}"
   register: winprof_raw
@@ -19,17 +19,13 @@
 - name: Compute Windows key source dir for this profile (WSL-mounted)
   ansible.builtin.set_fact:
     ssh_windows_source_profile_dir: >-
-      {{ '/mnt/c/' ~
-         ((winprof_raw.content | b64decode | trim)
-           | regex_replace('^([A-Za-z]):\\\\', '')
-           | regex_replace('\\\\', '/'))
-         ~ '/' ~ ssh_windows_keys_rel ~ '/' ~ wsl_profile
-      }}
+      {{ (winprof_raw.content | b64decode | trim) }}/{{ ssh_windows_keys_rel }}/{{ wsl_profile }}
 
 - name: Import SSH keys for profile from Windows into Linux
   ansible.builtin.copy:
+    remote_src: true
     src: "{{ ssh_windows_source_profile_dir }}/{{ item.name }}"
-    dest: "{{ ssh_linux_keys_dir }}//{{ item.name }}"
+    dest: "{{ ssh_linux_keys_dir }}/{{ item.name }}"
     mode: "{{ item.mode }}"
   loop:
     - { name: "id_ed25519", mode: "0600" }
