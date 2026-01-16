@@ -24,6 +24,10 @@
   register: nvim_init_slurp
   when: nvim_init_path is defined
 
+- name: Default plugin manager to none
+  ansible.builtin.set_fact:
+    nvim_plugin_manager: "none"
+
 - name: Determine plugin manager
   ansible.builtin.set_fact:
     nvim_init_text: "{{ (nvim_init_slurp.content | b64decode) }}"
@@ -79,3 +83,8 @@
   ansible.builtin.debug:
     msg: "Could not detect a supported plugin manager in {{ nvim_init_path }}. Supported: lazy.nvim, packer.nvim, vim-plug."
   when: nvim_plugin_manager == 'unknown'
+
+- name: Warn when no plugin manager is detected
+  ansible.builtin.debug:
+    msg: "Could not detect a plugin manager in {{ nvim_init_path }}."
+  when: nvim_plugin_manager == 'none'
