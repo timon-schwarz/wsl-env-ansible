@@ -15,3 +15,5 @@ dotfiles_src_profile_base: "{{ playbook_dir }}/../files/dotfiles"
 # Backup behavior: if a destination path already exists and is not the expected symlink,
 # it will be moved aside with this suffix.
 dotfiles_backup_suffix: "bak"
+
+dotfiles_debug: true
