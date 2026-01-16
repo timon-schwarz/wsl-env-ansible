@@ -1,7 +1,7 @@
 # Neovim configuration deployment
 # Intentionally minimal variables; derived from environment.
 
-home_dir: "{{ lookup('env', 'HOME') }}"
+home_dir: "{{ ansible_user_dir }}"
 
 nvim_src_dir: "{{ role_path }}/../../files/nvim"
 nvim_target_dir: "{{ home_dir }}/.config/nvim"
